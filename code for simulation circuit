@@ -1,0 +1,73 @@
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+ int NTC;
+ int NTCPin=A3;
+ int Y;
+ int YPin=A2; 
+int X;
+ int XPin=A1;
+int W;
+ int WPin=A0;
+int BUZZER=12;
+int RELAY=10;
+
+
+#include <Servo.h>
+Servo myservo1;
+void setup()
+{
+  lcd.init();
+  lcd.backlight();
+   myservo1.attach(9); 
+  Serial.begin(9600);
+  pinMode(BUZZER,OUTPUT);
+    pinMode(RELAY,OUTPUT);
+
+
+}
+
+void loop(){
+ 
+  NTC=analogRead(NTCPin);
+  
+  Serial.println(NTC);
+  delay(100);
+   Y=analogRead(YPin);
+  
+  Serial.println(Y);
+  delay(100);
+  X=analogRead(XPin);
+  
+  Serial.println(X);
+  delay(100);
+  W=analogRead(WPin);
+  
+  Serial.println(W);
+  delay(100);
+   lcd.setCursor(0, 0);
+  lcd.print("W=");
+  lcd.setCursor(3, 0);
+  lcd.print(W);
+  if(NTC>500){
+    digitalWrite(BUZZER,HIGH);
+        digitalWrite(RELAY,HIGH);
+
+  }
+   if(NTC<40){
+        digitalWrite(BUZZER,LOW);
+             digitalWrite(RELAY,LOW);
+
+
+  }
+  if(X>100){
+    myservo1.write(180);
+
+  } 
+   if(X<100){
+    myservo1.write(0);
+
+  } 
+
+}
