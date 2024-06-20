@@ -1,0 +1,226 @@
+#include <SoftwareSerial.h>    
+SoftwareSerial esp(6, 7);   //Pin 6 and 7 act as RX and TX. Connect them to TX and RX of ESP8266   
+ #include <Servo.h>
+
+#include <OneWire.h>
+
+int DS18S20_Pin = 2; //DS18S20 Signal pin on digital 2
+
+//Temperature chip i/o
+OneWire ds(DS18S20_Pin);  // on digital pin 2
+Servo myservo;  
+#define DEBUG true
+int number;
+String mySSID = "iphon";  // Wi-Fi SSID
+String myPWD = "91418120"; // Wi-Fi Password
+String myAPI = "IDKKBN1FIX4J60E6";   // WRITE API Key
+String myHOST = "api.thingspeak.com";
+String myPORT = "80";
+String myFIELD = "field1"; 
+String myFIELD1 = "field2"; 
+String myFIELD2 = "field3"; 
+String myFIELD3 = "field4"; 
+String myFIELD4 = "field5";
+String myFIELD5 = "field6";  
+
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+#define ANALOG_IN_PIN A0
+ 
+// Floats for ADC voltage & Input voltage
+float adc_voltage = 0.0;
+float in_voltage = 0.0;
+ 
+// Floats for resistor values in divider (in ohms)
+float R1 = 30000.0;
+float R2 = 7500.0; 
+ 
+// Float for Reference Voltage
+float ref_voltage = 5.0;
+ 
+// Integer for ADC value
+int adc_value = 0;
+// Set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+int sensor;
+ int sensorPin=A6;
+
+int Z;
+ int ZPin=A3;
+ int X;
+ int XPin=A4;
+ 
+ int Y;
+ int YPin=A5;
+int relay=3;
+int BUZZER=11;
+
+void setup()
+{
+  Serial.begin(115200);
+  esp.begin(115200);
+  myservo.attach(A1);
+  lcd.init();
+  // Turn on the blacklight and print a message.
+  lcd.backlight();
+pinMode(relay,OUTPUT);
+pinMode(BUZZER,OUTPUT);
+
+
+  Send_AT_Cmd("AT+RST", 1000, DEBUG);                      
+  Send_AT_Cmd("AT+CWMODE=1", 1000, DEBUG);                 
+  Send_AT_Cmd("AT+CWJAP=\""+ mySSID +"\",\""+ myPWD +"\"", 1000, DEBUG);   
+  delay(1000); 
+}
+
+  void loop()
+  {
+    sensor=analogRead(sensorPin);
+  
+  Serial.println(sensor);
+  delay(100);
+    float temperature = getTemp();
+  Serial.println(temperature);
+
+  delay(2000);
+  if(temperature>40){
+      digitalWrite(relay,HIGH);
+
+    }
+     if(temperature<40){
+        digitalWrite(relay,LOW);
+
+    }
+   X=analogRead(XPin);
+  
+  Serial.println(X);
+  delay(100);
+   Z=analogRead(ZPin);
+  
+  Serial.println(Z);
+  delay(100);
+   Y=analogRead(YPin);
+  
+  Serial.println(Y);
+  delay(100);
+if(X>100){
+        myservo.write(0);
+
+}
+else{
+         myservo.write(180);
+
+ 
+}
+   
+ // Read the Analog Input
+  adc_value = analogRead(ANALOG_IN_PIN);
+  
+  // Determine voltage at ADC input
+  adc_voltage  = (adc_value * ref_voltage) / 1024.0;
+  
+  // Calculate voltage at divider input
+  in_voltage = adc_voltage*(R1+R2)/R2;
+  
+  // Print results to Serial Monitor to 2 decimal places
+  Serial.print("Input Voltage = ");
+  Serial.println(in_voltage, 2);
+  
+  // Short delay
+    lcd.setCursor(0, 0);
+  lcd.print("Voltage=");
+  lcd.setCursor(9, 0);
+  lcd.print(in_voltage, 2);
+  if(in_voltage<8){
+       digitalWrite(BUZZER,HIGH);
+  
+  }
+   if(in_voltage>8){
+       digitalWrite(BUZZER,LOW);
+  
+  }
+  
+    number = random(100); // Send a random number between 1 and 100
+    String sendData = "GET /update?api_key="+ myAPI +"&"+ myFIELD +"="+String(sensor)+"&"+ myFIELD1 +"="+String(in_voltage, 2)+"&"+ myFIELD2 +"="+String(temperature)+"&"+ myFIELD3 +"="+String(X)+"&"+ myFIELD4 +"="+String(Y)+"&"+ myFIELD5 +"="+String(Z);
+    Send_AT_Cmd("AT+CIPMUX=1", 1000, DEBUG);       //Allow multiple connections
+    Send_AT_Cmd("AT+CIPSTART=0,\"TCP\",\""+ myHOST +"\","+ myPORT, 1000, DEBUG);
+    Send_AT_Cmd("AT+CIPSEND=0," +String(sendData.length()+4),1000,DEBUG);  
+    esp.find(">"); 
+    esp.println(sendData);
+    Serial.print("Value to be sent: ");
+    Serial.println(number);
+    Send_AT_Cmd("AT+CIPCLOSE=0",1000,DEBUG);
+    Serial.println("Done!");
+    Serial.println("");
+  }
+
+  String Send_AT_Cmd(String command, const int timeout, boolean debug)
+{
+  Serial.print(command);
+  Serial.println("     ");
+  
+  String response = "";
+  esp.println(command);
+  long int time = millis();
+  while ( (time + timeout) > millis())
+  {
+    while (esp.available())
+    {
+      char c = esp.read();
+      response += c;
+    }
+  }
+  if (debug)
+  {
+    //Serial.print(response);
+  }
+  return response;
+}
+  float getTemp(){
+  //returns the temperature from one DS18S20 in DEG Celsius
+
+  byte data[12];
+  byte addr[8];
+
+  if ( !ds.search(addr)) {
+      //no more sensors on chain, reset search
+      Serial.println("no more sensors on chain, reset search!");
+      ds.reset_search();
+      return -1000;
+  }
+
+  if ( OneWire::crc8( addr, 7) != addr[7]) {
+      Serial.println("CRC is not valid!");
+      return -1000;
+  }
+
+  if ( addr[0] != 0x10 && addr[0] != 0x28) {
+      Serial.print("Device is not recognized");
+      return -1000;
+  }
+
+  ds.reset();
+  ds.select(addr);
+  ds.write(0x44,1); // start conversion, with parasite power on at the end
+
+  byte present = ds.reset();
+  ds.select(addr);
+  ds.write(0xBE); // Read Scratchpad
+
+
+  for (int i = 0; i < 9; i++) { // we need 9 bytes
+    data[i] = ds.read();
+  }
+
+  ds.reset_search();
+
+  byte MSB = data[1];
+  byte LSB = data[0];
+
+  float tempRead = ((MSB << 8) | LSB); //using two's compliment
+  float TemperatureSum = tempRead / 16;
+
+  return TemperatureSum;
+
+}
